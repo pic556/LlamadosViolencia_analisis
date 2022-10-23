@@ -1,0 +1,226 @@
+---
+title: "Llamados atendidos por violencia 2017-2022"
+output: html_notebook
+author: "Pedro Burgos"
+---
+<br>
+
+#### *Paquetes a utilizar*
+
+```{r,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(plotrix)
+library(forcats)
+library(GGally)
+library(lubridate)
+```
+<br>
+
+#### *Cargo DS y verifico*
+```{r}
+ds<-read.csv(file = "llamados-atendidos-violencia-familiar-unificado-201701-202208.csv",stringsAsFactors = FALSE)
+
+head(ds)
+```
+<br>
+
+#### *Nombres de cada columna de mi DS*
+```{r}
+names(ds)
+```
+<br>
+
+#### *Información de contenido de cada columna*
+```{r}
+str(ds)
+```
+```{r}
+#Quiero contar el número de filas que hay en ds en total
+count(ds)
+
+#Vemos cuanto na hay por columna
+apply(is.na(ds),2,sum)
+
+#Directamente puedo decir que una  columna esta sin usar y borrarla
+ds$llamado_provincia_id<-NULL
+```
+<br>
+
+#### *Guardo en variables cada columna por comodidad*
+```{r}
+id<-ds$caso_id
+llamante_descripcion<-ds$llamante_descripcion
+llamante_genero<-ds$llamante_genero
+llamante_vinculo_ninios_presentes<-ds$llamante_vinculo_ninios_presentes
+violencia_tipo<-ds$violencia_tipo
+victima_edad<-ds$victima_edad
+victima_rango_etario<-ds$victima_rango_etario
+victima_genero<-ds$victima_genero
+victima_cantidad<-ds$victima_cantidad
+agresor_cantidad<-ds$agresor_cantidad
+agresor_genero<-ds$agresor_genero
+agresor_relacion_victima<-ds$agresor_relacion_victima
+llamado_derivacion<-ds$llamado_derivacion
+llamado_fecha<-as.Date(ds$llamado_fecha)
+llamado_hora<-ds$llamado_hora
+llamado_provincia<-ds$llamado_provincia
+
+```
+
+<br>
+
+#### *Para empezar con el análisis me hago preguntas*
+#### *¿Con qué frecuencia ocurre las llamadas y cuál es el género del que llama?*
+#### *¿Podemos ver cuantas veces el género  del llamante resulta ser el género agresor también?*
+```{r}
+barplot(table(llamante_genero),ylim=c(0,40000) ,main = "LLamadas y Agresion", xlab = "Generos", ylab = "Frecuencia de llamadas")
+par(new=TRUE)
+barplot(table(agresor_genero),ylim=c(0,40000), col = 2,
+     axes = FALSE, # Sin ejes
+     bty = "n",    # Sin caja
+     xlab = "", ylab = "",density=10) # Sin etiquetas de los ejes
+legend("topright", legend = c("llamada por genero", "genero del agresor"),
+       lwd = 1, col = c("black", "red"))
+
+#Mejor vista
+barplot(table(llamante_genero),ylim=c(0,60) ,sub = "LLamadas y Agresion",font.sub=4,cex.sub=1, xlab = "Generos", ylab = "Frecuencia de llamadas")
+par(new=TRUE)
+barplot(table(agresor_genero),ylim=c(0,60), col = 2,
+     axes = FALSE, # Sin ejes
+     bty = "n",    # Sin caja
+     xlab = "", ylab = "",density=10) # Sin etiquetas de los ejes
+legend("topright", legend = c("llamada por genero", "genero del agresor"),
+       lwd = 1, col = c("black", "red"))
+```
+#### *Podemos notar que normalmente el género que llama es el femenino, y el género del agresor normalmente es masculino.*
+#### *Luego en el caso más chico es el transgénero, tanto como "violentado y violentador"*
+<br>
+
+#### *Para poder seguir me gustaría saber cuál fue la 1.ª y última fecha registrada en el DS*
+```{r}
+first(llamado_fecha)
+last(llamado_fecha)
+```
+<br>
+
+#### *Ahora con ese dato sabemos que el DS llega hasta agosto del 2022,entonces podemos la frecuencia de llamadas que se hizo por mes y año*
+```{r}
+ano<-format(llamado_fecha, format = "%Y")
+ggplot(ds,aes(ano))+geom_bar()+
+ylab("Frecuencia de llamados") +
+xlab("Años") +
+ggtitle("Años de llamados")
+
+meses_fecha<-months(llamado_fecha)
+ggplot(ds,aes(x=fct_inorder(meses_fecha)))+geom_bar()+
+ylab("Frecuencia de llamados") +
+xlab("Meses") +
+ggtitle("Meses de llamados")
+
+```
+
+<br>
+
+#### *Siguiendo con las fechas podríamos segmentar por género*
+```{r}
+options(scipen=10)
+relacion_cant_agresor_fecha<-select(ds,llamante_genero,llamado_fecha)
+relacion_cant_agresor_fecha$llamado_fecha<-as.Date(relacion_cant_agresor_fecha$llamado_fecha)
+
+g<-ggpairs(relacion_cant_agresor_fecha, aes(color=llamante_genero,alpha=0.9),title = "Relacion del genero que realiza las llamadas y las Fechas",  
+lower=list(combo=wrap("facethist", binwidth=0.8)),columns = c(1,2))
+g[2,1]+aes(color=llamante_genero)
+
+```
+#### *Acá podría destacar que en el 2022 ocurre más llamado por parte del género Transgénero, una hipótesis que podría decir es debido a las políticas de género que fueron implementadas este año con relación al género ya mencionado*
+
+
+<br>
+
+#### *Un tema interesante a tocar es Tipo de violencias, así que veamos que contiene el DS*
+```{r}
+unique(violencia_tipo)
+```
+#### *Como se repite No Aplica, solo con una diferencia de mayúscula y minúscula, modifico el DS para que solo existe un "NO APLICA"*
+
+```{r}
+ds$violencia_tipo<-replace(ds$violencia_tipo, ds$violencia_tipo== "No Aplica", "No aplica")
+violencia_tipo<-ds$violencia_tipo
+unique(violencia_tipo)
+
+```
+```{r}
+saco_promedios<-function(bar1){
+  return(mean(bar1))
+}
+
+saco_cantidad<-function(bar2){
+  return(length(bar2))
+}
+
+saco_suma<-function(bar3){
+  return(sum(bar3))
+}
+
+
+caracteriza<-c("Promedio","#casos_Victimas","Sumatoria")
+
+```
+
+```{r}
+
+nombre_tipo_violencia<-unique(violencia_tipo)
+lista_De_tipvio_totales<-list()
+
+for (j in 1:length(unique(violencia_tipo))) {
+  w<-ds[violencia_tipo == nombre_tipo_violencia[j],]$victima_cantidad
+  lista_De_tipvio_totales<-c(lista_De_tipvio_totales,list(w))
+}
+
+viotip <-matrix(NA,nrow=length(nombre_tipo_violencia), 
+                ncol=length(c(caracteriza)))
+
+colnames(viotip)<-c(caracteriza)
+rownames(viotip)<-nombre_tipo_violencia
+
+vec_unido<-function(bar5){
+  vec_union_1<-c(saco_promedios(bar5),
+                 saco_cantidad(bar5),
+                 saco_suma(bar5))
+  return(vec_union_1)
+}
+
+violencia <- viotip
+for (i_1 in 1:length(nombre_tipo_violencia)) {
+        violencia[i_1,]<-vec_unido(lista_De_tipvio_totales[[i_1]])
+}
+violencia
+```
+#### *Con la información de cantidad de víctima y la de tipo de violencia, me cuestiono cuanto casos de víctimas hay y en total cuantas víctimas hay*
+
+```{r}
+ggplot(ds,aes(fct_rev(fct_infreq(violencia_tipo)),color=violencia_tipo))+geom_bar()+ coord_flip()
+```
+<br>
+
+#### *Para finalizar me gustaría ver modelos de regresión lineal donde relación el género de la víctima con la relacion_victima y género del agresor*
+```{r}
+
+q<-replace(ds$victima_genero, ds$victima_genero== "Femenino", 1)
+q<-replace(q, q== "Masculino", 2)
+q<-replace(q, q== "NS/NC", 3)
+q<-replace(q, q== "Transgénero", 4)
+
+summary(lm(q ~ agresor_relacion_victima , data = ds))
+summary(lm(q ~ agresor_genero , data = ds))
+modelo1 <-lm(q ~ agresor_relacion_victima , data = ds)
+modelo2 <-lm(q ~ agresor_genero , data = ds)
+  
+  
+plot(modelo1,which=1)
+plot(modelo2,which = 1)
+
+```
+
+#### *Concluimos que el mejor modelo es con el de la relación víctima y viendo desde los gráficos, en  “residuals vs. fitted” se quiere observar si hay patrones lineales o no, por lo consecuente se forma una línea prediciendo un supuesto patrón o un intento de esto muy asegurado*
