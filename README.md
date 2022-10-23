@@ -3,6 +3,8 @@ Analisis de datos de llamados-atendidos-violencia-familiar-unificado-201701-2022
 
 Conocimientos de R implementados:
 
+Markdown
+
 Uso de barras
 
 Uso ggplot
